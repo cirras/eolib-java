@@ -82,6 +82,9 @@ public final class TypeFactory {
       case "int":
         result = new IntegerType(name, 4);
         break;
+      case "five":
+        result = new LongType(name, 5);
+        break;
       case "bool":
         if (underlyingType == null) {
           underlyingType = (IntegerType) getType("char");

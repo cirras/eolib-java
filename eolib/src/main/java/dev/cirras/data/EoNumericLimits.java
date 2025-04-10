@@ -24,6 +24,10 @@ public final class EoNumericLimits {
    */
   public static final int INT_MAX = (int) ((long) CHAR_MAX * CHAR_MAX * CHAR_MAX * CHAR_MAX);
 
+  /** The maximum value of an EO five (5-byte encoded integer type) */
+  public static final long FIVE_MAX =
+      ((long) CHAR_MAX * (long) CHAR_MAX * (long) CHAR_MAX * (long) CHAR_MAX * (long) CHAR_MAX);
+
   private EoNumericLimits() {
     // constants class
   }

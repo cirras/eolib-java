@@ -34,14 +34,52 @@ public final class NumberEncodingUtils {
   }
 
   /**
+   * Encodes a long to a sequence of bytes.
+   *
+   * @param number the long to encode
+   * @return the encoded sequence of bytes
+   */
+  public static byte[] encodeNumber(long number) {
+    long value = number;
+
+    long e = 0xFE;
+    if (Long.compareUnsigned(number, EoNumericLimits.INT_MAX) >= 0) {
+      e = Long.divideUnsigned(value, EoNumericLimits.INT_MAX) + 1;
+      value = Long.remainderUnsigned(value, EoNumericLimits.INT_MAX);
+    }
+
+    long d = 0xFE;
+    if (Long.compareUnsigned(number, EoNumericLimits.THREE_MAX) >= 0) {
+      d = Long.divideUnsigned(value, EoNumericLimits.THREE_MAX) + 1;
+      value = Long.remainderUnsigned(value, EoNumericLimits.THREE_MAX);
+    }
+
+    long c = 0xFE;
+    if (Long.compareUnsigned(number, EoNumericLimits.SHORT_MAX) >= 0) {
+      c = Long.divideUnsigned(value, EoNumericLimits.SHORT_MAX) + 1;
+      value = Long.remainderUnsigned(value, EoNumericLimits.SHORT_MAX);
+    }
+
+    long b = 0xFE;
+    if (Long.compareUnsigned(number, EoNumericLimits.CHAR_MAX) >= 0) {
+      b = Long.divideUnsigned(value, EoNumericLimits.CHAR_MAX) + 1;
+      value = Long.remainderUnsigned(value, EoNumericLimits.CHAR_MAX);
+    }
+
+    long a = value + 1;
+
+    return new byte[] {(byte) a, (byte) b, (byte) c, (byte) d, (byte) e};
+  }
+
+  /**
    * Decodes a number from a sequence of bytes.
    *
    * @param bytes the sequence of bytes to decode
    * @return the decoded number
    */
-  public static int decodeNumber(byte[] bytes) {
-    int result = 0;
-    int length = Math.min(bytes.length, 4);
+  public static long decodeNumber(byte[] bytes) {
+    long result = 0;
+    int length = Math.min(bytes.length, 5);
 
     for (int i = 0; i < length; ++i) {
       byte b = bytes[i];
@@ -50,7 +88,7 @@ public final class NumberEncodingUtils {
         break;
       }
 
-      int value = Byte.toUnsignedInt(b) - 1;
+      long value = Byte.toUnsignedLong(b) - 1;
 
       switch (i) {
         case 0:
@@ -64,6 +102,9 @@ public final class NumberEncodingUtils {
           break;
         case 3:
           result += EoNumericLimits.THREE_MAX * value;
+          break;
+        case 4:
+          result += EoNumericLimits.INT_MAX * value;
           break;
       }
     }

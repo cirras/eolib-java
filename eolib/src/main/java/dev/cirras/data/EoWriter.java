@@ -80,6 +80,18 @@ public final class EoWriter {
   }
 
   /**
+   * Adds an encoded 5-byte integer to the writer data.
+   *
+   * @param number the number to encode and add
+   * @throws IllegalArgumentException if the value is not below {@link EoNumericLimits#INT_MAX}.
+   */
+  public void addFive(long number) {
+    checkNumberSize(number, EoNumericLimits.FIVE_MAX - 1);
+    byte[] bytes = NumberEncodingUtils.encodeNumber(number);
+    addBytes(bytes, 5);
+  }
+
+  /**
    * Adds a string to the writer data.
    *
    * @param string the string to be added
@@ -254,6 +266,13 @@ public final class EoWriter {
 
   private static void checkNumberSize(int number, int max) {
     if (Integer.compareUnsigned(number, max) > 0) {
+      throw new IllegalArgumentException(
+          String.format("Value %d exceeds maximum of %d.", number, max));
+    }
+  }
+
+  private static void checkNumberSize(long number, long max) {
+    if (Long.compareUnsigned(number, max) > 0) {
       throw new IllegalArgumentException(
           String.format("Value %d exceeds maximum of %d.", number, max));
     }

@@ -6,18 +6,7 @@ import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
-import dev.cirras.generate.type.BasicType;
-import dev.cirras.generate.type.BlobType;
-import dev.cirras.generate.type.BoolType;
-import dev.cirras.generate.type.CustomType;
-import dev.cirras.generate.type.EnumType;
-import dev.cirras.generate.type.HasUnderlyingType;
-import dev.cirras.generate.type.IntegerType;
-import dev.cirras.generate.type.Length;
-import dev.cirras.generate.type.StringType;
-import dev.cirras.generate.type.StructType;
-import dev.cirras.generate.type.Type;
-import dev.cirras.generate.type.TypeFactory;
+import dev.cirras.generate.type.*;
 import dev.cirras.util.JavaPoetUtils;
 import dev.cirras.util.NameUtils;
 import dev.cirras.util.NumberUtils;
@@ -569,6 +558,8 @@ class FieldCodeGenerator {
         return "writer.addThree($L)";
       case "int":
         return "writer.addInt($L)";
+      case "five":
+        return "writer.addFive($L)";
       case "string":
         if (lengthExpression == null) {
           return "writer.addString($L)";
@@ -717,6 +708,8 @@ class FieldCodeGenerator {
         return "reader.getThree()";
       case "int":
         return "reader.getInt()";
+      case "five":
+        return "reader.getFive()";
       case "string":
         {
           if (lengthExpression == null) {
@@ -774,6 +767,8 @@ class FieldCodeGenerator {
     Type type = getType();
     if (type instanceof IntegerType) {
       result = ClassName.get(Integer.class);
+    } else if (type instanceof LongType) {
+      result = ClassName.get(Long.class);
     } else if (type instanceof StringType) {
       result = ClassName.get(String.class);
     } else if (type instanceof BoolType) {

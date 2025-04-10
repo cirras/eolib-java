@@ -132,7 +132,7 @@ public final class EoReader {
    * @return a decoded 1-byte integer
    */
   public int getChar() {
-    return NumberEncodingUtils.decodeNumber(readBytes(1));
+    return (int) NumberEncodingUtils.decodeNumber(readBytes(1));
   }
 
   /**
@@ -141,7 +141,7 @@ public final class EoReader {
    * @return a decoded 2-byte integer
    */
   public int getShort() {
-    return NumberEncodingUtils.decodeNumber(readBytes(2));
+    return (int) NumberEncodingUtils.decodeNumber(readBytes(2));
   }
 
   /**
@@ -150,7 +150,7 @@ public final class EoReader {
    * @return a decoded 3-byte integer
    */
   public int getThree() {
-    return NumberEncodingUtils.decodeNumber(readBytes(3));
+    return (int) NumberEncodingUtils.decodeNumber(readBytes(3));
   }
 
   /**
@@ -159,7 +159,16 @@ public final class EoReader {
    * @return a decoded 4-byte integer
    */
   public int getInt() {
-    return NumberEncodingUtils.decodeNumber(readBytes(4));
+    return (int) NumberEncodingUtils.decodeNumber(readBytes(4));
+  }
+
+  /**
+   * Reads an encoded 5-byte integer from the input data.
+   *
+   * @return a decoded 5-byte integer
+   */
+  public long getFive() {
+    return NumberEncodingUtils.decodeNumber(readBytes(5));
   }
 
   /**
