@@ -479,7 +479,7 @@ class FieldCodeGenerator {
 
     String valueExpression = getWriteValueExpression();
     if (realType instanceof EnumType) {
-      valueExpression += ".asInteger()";
+      valueExpression += ".value()";
     } else if (realType instanceof BoolType) {
       valueExpression += " ? 1 : 0";
     }
@@ -672,7 +672,7 @@ class FieldCodeGenerator {
       if (realType instanceof EnumType) {
         EnumType enumType = (EnumType) realType;
         TypeName enumTypeName = ClassName.get(enumType.getPackageName(), enumType.getName());
-        statement.add("$T.fromInteger($L)", enumTypeName, readBasicType);
+        statement.add("$T.get($L)", enumTypeName, readBasicType);
       } else if (realType instanceof BoolType) {
         statement.add("$L != 0", readBasicType);
       } else {

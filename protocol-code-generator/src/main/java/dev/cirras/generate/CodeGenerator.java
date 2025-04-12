@@ -2,7 +2,6 @@ package dev.cirras.generate;
 
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
-import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
@@ -34,7 +33,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.element.Modifier;
@@ -154,56 +152,18 @@ public final class CodeGenerator {
   }
 
   private JavaFile generateEnum(ProtocolEnum protocolEnum) {
+    final String UNKNOWN_ENUM_VALUE = "UNRECOGNIZED";
+
     EnumType type = (EnumType) typeFactory.getType(protocolEnum.getName());
     String packageName = type.getPackageName();
-    ClassName wrapperName = ClassName.get(packageName, protocolEnum.getName());
-    ClassName enumName = wrapperName.nestedClass("Enum");
+    ClassName enumName = ClassName.get(packageName, protocolEnum.getName());
 
-    LOG.info("Generating enum: {}", wrapperName);
-
-    TypeSpec.Builder wrapperTypeSpec =
-        TypeSpec.classBuilder(wrapperName)
-            .addAnnotation(JavaPoetUtils.getGeneratedAnnotationTypeName())
-            .addModifiers(Modifier.PUBLIC)
-            .addField(enumName, "enumValue", Modifier.PRIVATE)
-            .addField(int.class, "integerValue", Modifier.PRIVATE)
-            .addMethod(
-                MethodSpec.constructorBuilder()
-                    .addModifiers(Modifier.PRIVATE)
-                    .addParameter(enumName, "enumValue")
-                    .addParameter(int.class, "integerValue")
-                    .addStatement("this.enumValue = enumValue")
-                    .addStatement("this.integerValue = integerValue")
-                    .build())
-            .addMethod(
-                MethodSpec.methodBuilder("asEnum")
-                    .addJavadoc("Returns the value as an enum.")
-                    .addJavadoc("\n\n")
-                    .addJavadoc("@return the value as an enum")
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(enumName)
-                    .addStatement("return enumValue")
-                    .build())
-            .addMethod(
-                MethodSpec.methodBuilder("asInteger")
-                    .addJavadoc("Returns the value as an integer.")
-                    .addJavadoc("\n\n")
-                    .addJavadoc("@return the value as an integer")
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(int.class)
-                    .addStatement("return integerValue")
-                    .build());
-
-    protocolEnum
-        .getComment()
-        .map(ProtocolComment::getText)
-        .map(CommentUtils::formatComment)
-        .ifPresent(wrapperTypeSpec::addJavadoc);
+    LOG.info("Generating enum: {}", enumName);
 
     TypeSpec.Builder enumTypeSpec =
         TypeSpec.enumBuilder(enumName)
             .addJavadoc(
-                "An enum representing expected values of {@code $L}.", wrapperName.simpleName())
+                "An enum representing expected values of {@link $L}.", enumName.simpleName())
             .addAnnotation(JavaPoetUtils.getGeneratedAnnotationTypeName())
             .addModifiers(Modifier.PUBLIC)
             .addField(int.class, "value", Modifier.PRIVATE, Modifier.FINAL)
@@ -214,7 +174,7 @@ public final class CodeGenerator {
                     .addStatement("this.value = value")
                     .build())
             .addMethod(
-                MethodSpec.methodBuilder("getValue")
+                MethodSpec.methodBuilder("value")
                     .addJavadoc("Returns the integer value of this enumeration constant.")
                     .addJavadoc("\n\n")
                     .addJavadoc("@return the integer value of this enumeration constant")
@@ -223,8 +183,14 @@ public final class CodeGenerator {
                     .addStatement("return value")
                     .build());
 
+    protocolEnum
+        .getComment()
+        .map(ProtocolComment::getText)
+        .map(CommentUtils::formatComment)
+        .ifPresent(enumTypeSpec::addJavadoc);
+
     enumTypeSpec.addEnumConstant(
-        "UNRECOGNIZED",
+        UNKNOWN_ENUM_VALUE,
         TypeSpec.anonymousClassBuilder("-1")
             .addJavadoc("An unrecognized value that is not represented in the enum.")
             .build());
@@ -240,107 +206,55 @@ public final class CodeGenerator {
       TypeSpec.Builder enumConstantClass =
           TypeSpec.anonymousClassBuilder("$L", value.getOrdinalValue());
 
-      FieldSpec.Builder wrapperField =
-          FieldSpec.builder(
-                  wrapperName,
-                  value.getJavaName(),
-                  Modifier.PUBLIC,
-                  Modifier.STATIC,
-                  Modifier.FINAL)
-              .initializer(
-                  "new $T($T.$L, $L)",
-                  wrapperName,
-                  enumName,
-                  value.getJavaName(),
-                  value.getOrdinalValue());
-
       protocolValue
           .getComment()
           .map(ProtocolComment::getText)
-          .ifPresent(
-              text -> {
-                enumConstantClass.addJavadoc(text);
-                wrapperField.addJavadoc(text);
-              });
+          .ifPresent(enumConstantClass::addJavadoc);
 
       enumTypeSpec.addEnumConstant(value.getJavaName(), enumConstantClass.build());
-      wrapperTypeSpec.addField(wrapperField.build());
 
       fromIntegerSwitchBlock
           .add("case $L:\n", value.getOrdinalValue())
           .indent()
-          .addStatement("return $T.$L", wrapperName, value.getJavaName())
+          .addStatement("return $L", value.getJavaName())
           .unindent();
     }
 
     fromIntegerSwitchBlock
         .add("default:\n")
         .indent()
-        .addStatement("return new $T($T.UNRECOGNIZED, value)", wrapperName, enumName)
+        .addStatement("return " + UNKNOWN_ENUM_VALUE)
         .unindent()
         .endControlFlow();
 
-    wrapperTypeSpec
+    enumTypeSpec
         .addMethod(
-            MethodSpec.methodBuilder("fromInteger")
+            MethodSpec.methodBuilder("get")
                 .addJavadoc(
-                    "Returns an instance of {@code $L} with the specified integer value.",
-                    wrapperName.simpleName())
+                    "Returns the corresponding {@link $L} for the specified integer value.",
+                    enumName.simpleName())
                 .addJavadoc("\n\n")
                 .addJavadoc("@param value the integer value\n")
                 .addJavadoc(
-                    "@return an instance of {@code $L} with the specified integer value\n",
-                    wrapperName.simpleName())
+                    "@return an corresponding {@link $L} for the specified integer value\n",
+                    enumName.simpleName())
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addParameter(int.class, "value")
-                .returns(wrapperName)
+                .returns(enumName)
                 .addCode(fromIntegerSwitchBlock.build())
-                .build())
-        .addMethod(
-            MethodSpec.methodBuilder("hashCode")
-                .addJavadoc("Returns a hash code value for the object.")
-                .addJavadoc("\n\n")
-                .addJavadoc("@return a hash code value for this object")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC)
-                .returns(int.class)
-                .addStatement("return $T.hash(enumValue, integerValue)", Objects.class)
-                .build())
-        .addMethod(
-            MethodSpec.methodBuilder("equals")
-                .addJavadoc("Indicates whether some other object is \"equal to\" this one.")
-                .addJavadoc("\n\n")
-                .addJavadoc("@param obj the reference object with which to compare\n")
-                .addJavadoc(
-                    "@return true if this object is the same as the obj argument; false otherwise")
-                .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(Object.class, "obj")
-                .returns(boolean.class)
-                .beginControlFlow("if (this == obj)")
-                .addStatement("return true")
-                .endControlFlow()
-                .beginControlFlow("if (obj == null || getClass() != obj.getClass())")
-                .addStatement("return false")
-                .endControlFlow()
-                .addStatement("$1T other = ($1T) obj", wrapperName)
-                .addStatement(
-                    "return enumValue == other.enumValue && integerValue == other.integerValue",
-                    Objects.class)
                 .build())
         .addMethod(
             MethodSpec.methodBuilder("toString")
                 .addJavadoc("Returns a string representation of the object.")
                 .addJavadoc("\n\n")
-                .addJavadoc("@return a string representation of the o78ubject")
+                .addJavadoc("@return a string representation of the object")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
-                .addStatement("  return enumValue.name() + \"(\" + integerValue + \")\"")
-                .build())
-        .addType(enumTypeSpec.build());
+                .addStatement("  return this.name() + \"(\" + this.value + \")\"")
+                .build());
 
-    return JavaFile.builder(packageName, wrapperTypeSpec.build()).build();
+    return JavaFile.builder(packageName, enumTypeSpec.build()).build();
   }
 
   private JavaFile generateStruct(ProtocolStruct protocolStruct) {
