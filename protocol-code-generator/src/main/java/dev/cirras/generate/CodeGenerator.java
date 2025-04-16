@@ -28,12 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Stream;
 import javax.lang.model.element.Modifier;
 import org.apache.logging.log4j.LogManager;
@@ -133,6 +128,7 @@ public final class CodeGenerator {
 
   private void generateSourceFiles() {
     protocolFiles.forEach(this::generateSourceFiles);
+    generatePacketInterface();
   }
 
   private void generateSourceFiles(Protocol protocol) {
@@ -143,6 +139,33 @@ public final class CodeGenerator {
     protocol.getPackets().stream().map(this::generatePacket).forEach(javaFiles::add);
 
     for (JavaFile javaFile : javaFiles) {
+      try {
+        javaFile.writeToPath(outputRoot);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+  }
+
+  private void generatePacketInterface() {
+    Iterator<Protocol> packetProtocols =
+        protocolFiles.stream().filter(protocol -> !protocol.getPackets().isEmpty()).iterator();
+
+    if (packetProtocols.hasNext()) {
+      Protocol protocol = packetProtocols.next();
+
+      ClassName packetInterfaceName = getPacketInterfaceName();
+
+      TypeSpec.Builder builder = generatePacketInterfaceBuilder(protocol);
+      addPacketDeserializer(builder, protocol);
+
+      while (packetProtocols.hasNext()) {
+        protocol = packetProtocols.next();
+        addPacketDeserializer(builder, protocol);
+      }
+
+      JavaFile javaFile =
+          JavaFile.builder(packetInterfaceName.packageName(), builder.build()).build();
       try {
         javaFile.writeToPath(outputRoot);
       } catch (IOException e) {
@@ -277,48 +300,77 @@ public final class CodeGenerator {
     return JavaFile.builder(packageName, typeSpec.build()).build();
   }
 
-  private JavaFile generatePacket(ProtocolPacket protocolPacket) {
+  private EnumType getPacketFamilyType() {
+    Type familyType = typeFactory.getType("PacketFamily");
+    if (!(familyType instanceof EnumType)) {
+      throw new CodeGenerationError("PacketFamily enum is missing");
+    }
+    return (EnumType) familyType;
+  }
+
+  private EnumType getPacketActionType() {
+    Type actionType = typeFactory.getType("PacketAction");
+    if (!(actionType instanceof EnumType)) {
+      throw new CodeGenerationError("PacketAction enum is missing");
+    }
+    return (EnumType) actionType;
+  }
+
+  private ClassName getPacketFamilyTypeName() {
+    EnumType familyType = getPacketFamilyType();
+    return ClassName.get(familyType.getPackageName(), familyType.getName());
+  }
+
+  private ClassName getPacketActionTypeName() {
+    EnumType actionType = getPacketActionType();
+    return ClassName.get(actionType.getPackageName(), actionType.getName());
+  }
+
+  private String getFamilyJavaName(String protocolName) {
+    return getPacketFamilyType()
+        .getEnumValueByProtocolName(protocolName)
+        .map(EnumType.EnumValue::getJavaName)
+        .orElseThrow(
+            () ->
+                new CodeGenerationError(
+                    String.format("Unknown packet family \"%s\"", protocolName)));
+  }
+
+  private String getActionJavaName(String protocolName) {
+    return getPacketActionType()
+        .getEnumValueByProtocolName(protocolName)
+        .map(EnumType.EnumValue::getJavaName)
+        .orElseThrow(
+            () ->
+                new CodeGenerationError(
+                    String.format("Unknown packet family \"%s\"", protocolName)));
+  }
+
+  private ClassName getPacketClassName(ProtocolPacket protocolPacket) {
     String packageName = packetPackageNames.get(protocolPacket);
     String packetSuffix = makePacketSuffix(packageName);
     String simpleName = protocolPacket.getFamily() + protocolPacket.getAction() + packetSuffix;
-    ClassName className = ClassName.get(packageName, simpleName);
+    return ClassName.get(packageName, simpleName);
+  }
+
+  private ClassName getPacketInterfaceName() {
+    String packageName = getPacketFamilyType().getPackageName();
+    return ClassName.get(packageName, "Packet");
+  }
+
+  private JavaFile generatePacket(ProtocolPacket protocolPacket) {
+    ClassName className = getPacketClassName(protocolPacket);
 
     LOG.info("Generating packet: {}", className);
 
     ObjectCodeGenerator objectCodeGenerator = new ObjectCodeGenerator(className, typeFactory);
     protocolPacket.getInstructions().forEach(objectCodeGenerator::generateInstruction);
 
-    Type familyType = typeFactory.getType("PacketFamily");
-    if (!(familyType instanceof EnumType)) {
-      throw new CodeGenerationError("PacketFamily enum is missing");
-    }
+    TypeName familyTypeName = getPacketFamilyTypeName();
+    String familyValueJavaName = getFamilyJavaName(protocolPacket.getFamily());
 
-    Type actionType = typeFactory.getType("PacketAction");
-    if (!(actionType instanceof EnumType)) {
-      throw new CodeGenerationError("PacketAction enum is missing");
-    }
-
-    TypeName familyTypeName =
-        ClassName.get(((EnumType) familyType).getPackageName(), familyType.getName());
-    String familyValueJavaName =
-        ((EnumType) familyType)
-            .getEnumValueByProtocolName(protocolPacket.getFamily())
-            .map(EnumType.EnumValue::getJavaName)
-            .orElseThrow(
-                () ->
-                    new CodeGenerationError(
-                        String.format("Unknown packet family \"%s\"", protocolPacket.getFamily())));
-
-    TypeName actionTypeName =
-        ClassName.get(((EnumType) actionType).getPackageName(), actionType.getName());
-    String actionValueJavaName =
-        ((EnumType) actionType)
-            .getEnumValueByProtocolName(protocolPacket.getAction())
-            .map(EnumType.EnumValue::getJavaName)
-            .orElseThrow(
-                () ->
-                    new CodeGenerationError(
-                        String.format("Unknown packet family \"%s\"", protocolPacket.getAction())));
+    TypeName actionTypeName = getPacketActionTypeName();
+    String actionValueJavaName = getActionJavaName(protocolPacket.getAction());
 
     TypeSpec.Builder typeSpec =
         objectCodeGenerator
@@ -370,7 +422,121 @@ public final class CodeGenerator {
         .map(CommentUtils::formatComment)
         .ifPresent(typeSpec::addJavadoc);
 
-    return JavaFile.builder(packageName, typeSpec.build()).build();
+    return JavaFile.builder(className.packageName(), typeSpec.build()).build();
+  }
+
+  private TypeSpec.Builder generatePacketInterfaceBuilder(Protocol protocol) {
+    EnumType familyType = getPacketFamilyType();
+    ClassName familyTypeName = ClassName.get(familyType.getPackageName(), familyType.getName());
+    EnumType actionType = getPacketActionType();
+    ClassName actionTypeName = ClassName.get(actionType.getPackageName(), actionType.getName());
+
+    ClassName packetInterfaceName = getPacketInterfaceName();
+
+    LOG.info("Generating packet interface {}", packetInterfaceName);
+
+    return TypeSpec.interfaceBuilder(packetInterfaceName)
+        .addJavadoc("Object representation of a packet in the EO network protocol.")
+        .addAnnotation(JavaPoetUtils.getGeneratedAnnotationTypeName())
+        .addModifiers(Modifier.PUBLIC)
+        .addMethod(
+            MethodSpec.methodBuilder("family")
+                .addJavadoc("Returns the packet family associated with this packet.")
+                .addJavadoc("\n\n")
+                .addJavadoc("@return the packet family associated with this packet")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(familyTypeName)
+                .build())
+        .addMethod(
+            MethodSpec.methodBuilder("action")
+                .addJavadoc("Returns the packet action associated with this packet.")
+                .addJavadoc("\n\n")
+                .addJavadoc("@return the packet action associated with this packet")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .returns(actionTypeName)
+                .build())
+        .addMethod(
+            MethodSpec.methodBuilder("serialize")
+                .addJavadoc("Serializes this packet to the provided {@link EoWriter}.")
+                .addJavadoc("\n\n")
+                .addJavadoc("@param writer the writer that this packet will be serialized to")
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addParameter(ClassName.get("dev.cirras.data", "EoWriter"), "writer")
+                .build());
+  }
+
+  private void addPacketDeserializer(TypeSpec.Builder packetInterfaceBuilder, Protocol protocol) {
+    ClassName packetInterfaceName = getPacketInterfaceName();
+
+    String packetsPackageName =
+        packetPackageNames.get(
+            protocol.getPackets().stream()
+                .findFirst()
+                .orElseThrow(
+                    () ->
+                        new CodeGenerationError(
+                            "No packets in protocol but generating packet deserializer")));
+    String packetSuffix = makePacketSuffix(packetsPackageName);
+
+    String packetFamilyParameter = "packetFamily";
+    String packetActionParameter = "packetAction";
+    String eoReaderParameter = "eoReader";
+
+    CodeBlock.Builder deserializeSwitchBlock =
+        CodeBlock.builder().beginControlFlow(String.format("switch (%s)", packetFamilyParameter));
+
+    Map<String, List<ProtocolPacket>> packetFamilies = new HashMap<>();
+
+    protocol
+        .getPackets()
+        .forEach(
+            packet -> {
+              packetFamilies
+                  .computeIfAbsent(packet.getFamily(), k -> new ArrayList<>())
+                  .add(packet);
+            });
+
+    packetFamilies.forEach(
+        (family, packets) -> {
+          deserializeSwitchBlock.add("case $L:\n", getFamilyJavaName(family));
+          deserializeSwitchBlock.indent();
+          CodeBlock.Builder actionSwitchBlock =
+              CodeBlock.builder().beginControlFlow("switch ($L)", packetActionParameter);
+
+          for (ProtocolPacket packet : packets) {
+            actionSwitchBlock.addStatement(
+                "case $L: return $T.deserialize($L)",
+                getActionJavaName(packet.getAction()),
+                getPacketClassName(packet),
+                eoReaderParameter);
+          }
+
+          actionSwitchBlock.endControlFlow();
+          deserializeSwitchBlock.add(actionSwitchBlock.build());
+          deserializeSwitchBlock.unindent();
+        });
+
+    deserializeSwitchBlock.endControlFlow();
+
+    packetInterfaceBuilder.addMethod(
+        MethodSpec.methodBuilder("deserialize" + packetSuffix)
+            .addJavadoc("Deserializes this packet from the provided {@link EoReader}.")
+            .addJavadoc("\n\n")
+            .addJavadoc(
+                "@param $L the reader that this packet will be deserialized from",
+                eoReaderParameter)
+            .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+            .addParameter(getPacketFamilyTypeName(), packetFamilyParameter)
+            .addParameter(getPacketActionTypeName(), packetActionParameter)
+            .addParameter(ClassName.get("dev.cirras.data", "EoReader"), eoReaderParameter)
+            .addCode(deserializeSwitchBlock.build())
+            .addStatement(
+                "throw new $T(\"Cannot deserialize Family: \" + $L + \" Action: \" + $L)",
+                IllegalArgumentException.class,
+                packetFamilyParameter,
+                packetActionParameter)
+            .returns(packetInterfaceName)
+            .build());
   }
 
   private static String makePacketSuffix(String packageName) {
