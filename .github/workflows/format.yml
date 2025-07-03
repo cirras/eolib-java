@@ -10,3 +10,4 @@ jobs:
       - uses: axel-op/googlejavaformat-action@v4
         with:
           args: "--set-exit-if-changed --dry-run"
+          release-name: v1.26.0
