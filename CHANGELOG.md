@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-07-03
+
 ### Added
 
 - Support for server pub files:
@@ -332,7 +334,8 @@ With this change, the `InitReply.FILE*` enum values are now `InitReply.FILE_*`.
   - Data encryption
   - Packet sequencer
 
-[Unreleased]: http://github.com/cirras/eolib-java/compare/v1.0.1...HEAD
+[Unreleased]: http://github.com/cirras/eolib-java/compare/v1.1.0...HEAD
+[1.1.0]: http://github.com/cirras/eolib-java/compare/v1.0.1...v1.1.0
 [1.0.1]: http://github.com/cirras/eolib-java/compare/v1.0.0...v1.0.1
 [1.0.0]: http://github.com/cirras/eolib-java/compare/v1.0.0-RC11...v1.0.0
 [1.0.0-RC11]: http://github.com/cirras/eolib-java/compare/v1.0.0-RC10...v1.0.0-RC11
