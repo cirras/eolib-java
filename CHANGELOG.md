@@ -48,9 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix incorrect (de)serialization of `EffectAgreeServerPacket` due to only the first effect in the
   array being recognized.
 - Fix inaccurate serialization of `QuestAcceptClientPacket` where the char value 0 should be written
-  for `DialogReply.Ok`.
+  for `DialogReply.OK`.
 - Fix inaccurate serialization of `AccountReplyServerPacket` where the string value "OK" should be
-  written for `AccountReply.Changed`, but "NO" was being written instead.
+  written for `AccountReply.CHANGED`, but "NO" was being written instead.
 - Fix inaccurate serialization of `AdminInteractTellServerPacket` where the `goldBank` field was
   missing.
 - Fix inaccurate serialization of `RecoverPlayerServerPacket` where a trailing 0 short value was
